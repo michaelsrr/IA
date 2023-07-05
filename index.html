@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <link rel="shortcut icon" href="https://creadn.com.co/assets/img/icono.png">
   <meta charset="UTF-8">
   <title>Identificación de Emociones</title>
   <style>
@@ -25,21 +26,14 @@
       font-weight: bold;
     }
   </style>
-</head>
-<body>
-  <h1>Identificación de Emociones</h1>
-  <button onclick="startRecording()">Grabar</button>
-  <button onclick="stopRecording()">Detener</button>
-  <div id="emotion-result"></div>
-
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0/dist/tf.min.js"></script>
   <script>
-    // Cargar el modelo
+    // Cargar el modelo y definir las emociones disponibles
     async function loadModel() {
-      const model = await tf.loadLayersModel('model.json');
+      const model = await tf.loadLayersModel('tfjs_model/model.json');
       return model;
     }
 
-    // Definir las emociones disponibles
     const emotions = ['Agradecimiento', 'Ansiedad', 'Curiosidad', 'Expectativa', 'Felicidad', 'Seguridad', 'Tranquilidad'];
 
     // Variables para el audio
@@ -57,12 +51,6 @@
             audioChunks.push(event.data);
           });
 
-          mediaRecorder.addEventListener('stop', function () {
-            const audioBlob = new Blob(audioChunks);
-            const audioUrl = URL.createObjectURL(audioBlob);
-            predictEmotion(audioUrl);
-          });
-
           mediaRecorder.start();
         })
         .catch(function (error) {
@@ -70,7 +58,7 @@
         });
     }
 
-    // Función para detener la grabación
+    // Función para detener la grabación y predecir la emoción
     function stopRecording() {
       if (stream) {
         const tracks = stream.getTracks();
@@ -78,6 +66,16 @@
           track.stop();
         });
         stream = null;
+
+        const mediaRecorder = audioChunks.length > 0 ? audioChunks[0].recorder : null;
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+          mediaRecorder.addEventListener('stop', async function () {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            await predictEmotion(audioUrl);
+          });
+          mediaRecorder.stop();
+        }
       }
     }
 
@@ -97,7 +95,7 @@
           scriptProcessor.addEventListener('audioprocess', function (event) {
             const channelData = event.inputBuffer.getChannelData(0);
 
-            for (let i = 0; i < channelData.length; i++) {
+            for (let i = 0;          channelData.length; i++) {
               audioData.push(channelData[i]);
             }
           });
@@ -117,7 +115,13 @@
       });
     }
 
-    // Función para predecir la emoción
+    // Función para mostrar la emoción identificada
+    function showEmotionResult(emotion) {
+      const resultElement = document.getElementById('emotion-result');
+      resultElement.textContent = `Emoción identificada: ${emotion}`;
+    }
+
+    // Función para predecir la emoción y mostrar los resultados
     async function predictEmotion(audioUrl) {
       try {
         const model = await loadModel();
@@ -129,15 +133,19 @@
         const predictions = model.predict(audioTensorExpanded);
         const emotionIndex = predictions.argMax(1).dataSync()[0];
         const emotion = emotions[emotionIndex];
-        const probability = predictions.dataSync()[emotionIndex];
 
-        // Mostrar los resultados
-        const resultContainer = document.getElementById('emotion-result');
-        resultContainer.textContent = `Emoción identificada: ${emotion} (Probabilidad: ${probability})`;
+        // Mostrar la emoción identificada
+        showEmotionResult(emotion);
       } catch (error) {
         console.error('Error al predecir la emoción:', error);
       }
     }
   </script>
+</head>
+<body>
+  <h1>Identificación de Emociones</h1>
+  <button onclick="startRecording()">Grabar</button>
+  <button onclick="stopRecording()">Detener</button>
+  <p id="emotion-result"></p>
 </body>
 </html>
