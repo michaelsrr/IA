@@ -3,7 +3,7 @@
 <head>
   <link rel="shortcut icon" href="https://creadn.com.co/assets/img/icono.png">
   <meta charset="UTF-8">
-  <title>Identificación de Emociones</title>
+  <title>Reconocimiento de emociones en tiempo real</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -12,140 +12,170 @@
     }
 
     h1 {
-      font-size: 24px;
+      color: #333;
     }
 
-    button {
+    #startButton {
       padding: 10px 20px;
-      font-size: 18px;
-      margin: 10px;
+      border: none;
+      background-color: #007bff;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      margin-bottom: 20px;
     }
 
-    #emotion-result {
-      font-size: 18px;
+    #resultModal {
+      display: none;
+      position: fixed;
+      z-index: 1;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      overflow: auto;
+      background-color: rgba(0, 0, 0, 0.5);
+    }
+
+    #resultContent {
+      background-color: #fefefe;
+      margin: 15% auto;
+      padding: 20px;
+      border: 1px solid #888;
+      width: 80%;
+      max-width: 400px;
+      text-align: center;
+    }
+
+    #closeButton {
+      color: #aaa;
+      float: right;
+      font-size: 28px;
       font-weight: bold;
+      cursor: pointer;
     }
   </style>
+</head>
+<body>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0/dist/tf.min.js"></script>
+  <h1>Reconocimiento de emociones en tiempo real</h1>
+  <button id="startButton">Iniciar</button>
+
+  <div id="resultModal">
+    <div id="resultContent">
+      <span id="closeButton">&times;</span>
+      <h2>Resultado</h2>
+      <p id="emotionResult"></p>
+      <p id="probabilityResult"></p>
+    </div>
+  </div>
   <script>
-    // Cargar el modelo y definir las emociones disponibles
-    async function loadModel() {
-      const model = await tf.loadLayersModel('tfjs_model/model.json');
-      return model;
+  // Cargar el modelo desde el archivo model.json
+  async function loadModel() {
+    const model = await tf.loadLayersModel('./tfjs_model/model.json');
+    return model;
+  }
+
+  // Función para predecir la emoción utilizando el modelo cargado
+  async function predictEmotion(mfcc) {
+    const model = await loadModel();
+    const predictions = model.predict(mfcc);
+    const emotionIndex = predictions.argMax(1).dataSync()[0];
+    const emotion = emotions[emotionIndex];
+    const probability = predictions.dataSync()[emotionIndex];
+
+    return { emotion, probability };
+  }
+
+    var emotions = ['Agradecimiento', 'Ansiedad', 'Curiosidad', 'Expectativa', 'Felicidad', 'Seguridad', 'Tranquilidad'];
+
+    function preprocessAudio(audioData) {
+      // Convertir el audio a un archivo WAV
+      var blob = new Blob([audioData], { type: 'audio/wav' });
+
+      // Crear un objeto FormData para enviar el archivo al servidor
+      var formData = new FormData();
+      formData.append('audio', blob, 'temp_audio.wav');
+
+      return formData;
     }
 
-    const emotions = ['Agradecimiento', 'Ansiedad', 'Curiosidad', 'Expectativa', 'Felicidad', 'Seguridad', 'Tranquilidad'];
+    function displayResult(emotion, probability) {
+      var emotionResult = document.getElementById('emotionResult');
+      var probabilityResult = document.getElementById('probabilityResult');
 
-    // Variables para el audio
-    let audioChunks = [];
-    let stream;
+      emotionResult.textContent = 'Emoción identificada: ' + emotion;
+      probabilityResult.textContent = 'Probabilidad: ' + probability.toFixed(2);
 
-    // Función para iniciar la grabación
-    function startRecording() {
+      var modal = document.getElementById('resultModal');
+      modal.style.display = 'block';
+    }
+
+    function captureAndPredict() {
+      var startButton = document.getElementById('startButton');
+      startButton.disabled = true;
+      startButton.textContent = 'Grabando...';
+
       navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(function (stream) {
-          audioChunks = [];
-          const mediaRecorder = new MediaRecorder(stream);
+        .then(function(stream) {
+          var chunks = [];
+          var mediaRecorder = new MediaRecorder(stream);
 
-          mediaRecorder.addEventListener('dataavailable', function (event) {
-            audioChunks.push(event.data);
+          mediaRecorder.addEventListener('dataavailable', function(event) {
+            chunks.push(event.data);
           });
+
+          mediaRecorder.addEventListener('stop', function() {
+            var audioData = new Blob(chunks, { type: 'audio/webm' });
+            var audioURL = URL.createObjectURL(audioData);
+
+            var audio = new Audio();
+            audio.src = audioURL;
+            audio.controls = true;
+            document.body.appendChild(audio);
+
+            var formData = preprocessAudio(audioData);
+
+            fetch('predict.php', {
+              method: 'POST',
+              body: formData
+            })
+            .then(function(response) {
+              return response.json();
+            })
+            .then(function(data) {
+              displayResult(data.emotion, data.probability);
+            })
+            .catch(function(error) {
+              console.error('Error:', error);
+            });
+          });
+
+          setTimeout(function() {
+            mediaRecorder.stop();
+            stream.getTracks().forEach(function(track) {
+              track.stop();
+            });
+
+            startButton.disabled = false;
+            startButton.textContent = 'Iniciar';
+          }, 5000);
 
           mediaRecorder.start();
         })
-        .catch(function (error) {
-          console.error('Error al acceder al micrófono:', error);
+        .catch(function(error) {
+          console.error('Error:', error);
         });
     }
 
-    // Función para detener la grabación y predecir la emoción
-    function stopRecording() {
-      if (stream) {
-        const tracks = stream.getTracks();
-        tracks.forEach(function (track) {
-          track.stop();
-        });
-        stream = null;
+    var closeButton = document.getElementById('closeButton');
+    closeButton.addEventListener('click', function() {
+      var modal = document.getElementById('resultModal');
+      modal.style.display = 'none';
+    });
 
-        const mediaRecorder = audioChunks.length > 0 ? audioChunks[0].recorder : null;
-        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-          mediaRecorder.addEventListener('stop', async function () {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-            const audioUrl = URL.createObjectURL(audioBlob);
-            await predictEmotion(audioUrl);
-          });
-          mediaRecorder.stop();
-        }
-      }
-    }
-
-    // Función para preprocesar el audio
-    function preprocessAudio(audioUrl) {
-      return new Promise(function (resolve, reject) {
-        const audio = new Audio();
-        audio.src = audioUrl;
-
-        audio.addEventListener('loadedmetadata', function () {
-          const audioContext = new AudioContext();
-          const source = audioContext.createMediaElementSource(audio);
-          const scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
-
-          const audioData = [];
-
-          scriptProcessor.addEventListener('audioprocess', function (event) {
-            const channelData = event.inputBuffer.getChannelData(0);
-
-            for (let i = 0;          channelData.length; i++) {
-              audioData.push(channelData[i]);
-            }
-          });
-
-          scriptProcessor.addEventListener('complete', function () {
-            resolve(audioData);
-          });
-
-          source.connect(scriptProcessor);
-          scriptProcessor.connect(audioContext.destination);
-          audio.play();
-        });
-
-        audio.addEventListener('error', function (error) {
-          reject(error);
-        });
-      });
-    }
-
-    // Función para mostrar la emoción identificada
-    function showEmotionResult(emotion) {
-      const resultElement = document.getElementById('emotion-result');
-      resultElement.textContent = `Emoción identificada: ${emotion}`;
-    }
-
-    // Función para predecir la emoción y mostrar los resultados
-    async function predictEmotion(audioUrl) {
-      try {
-        const model = await loadModel();
-        const audioData = await preprocessAudio(audioUrl);
-        const audioTensor = tf.tensor(audioData);
-        const audioTensorNormalized = audioTensor.div(tf.max(tf.abs(audioTensor)));
-        const audioTensorReshaped = audioTensorNormalized.reshape([1, audioTensorNormalized.shape[0], 1]);
-        const audioTensorExpanded = audioTensorReshaped.expandDims(-1);
-        const predictions = model.predict(audioTensorExpanded);
-        const emotionIndex = predictions.argMax(1).dataSync()[0];
-        const emotion = emotions[emotionIndex];
-
-        // Mostrar la emoción identificada
-        showEmotionResult(emotion);
-      } catch (error) {
-        console.error('Error al predecir la emoción:', error);
-      }
-    }
+    var startButton = document.getElementById('startButton');
+    startButton.addEventListener('click', captureAndPredict);
   </script>
-</head>
-<body>
-  <h1>Identificación de Emociones</h1>
-  <button onclick="startRecording()">Grabar</button>
-  <button onclick="stopRecording()">Detener</button>
-  <p id="emotion-result"></p>
 </body>
 </html>
