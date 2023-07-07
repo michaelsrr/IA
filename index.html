@@ -57,7 +57,6 @@
   </style>
 </head>
 <body>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0/dist/tf.min.js"></script>
   <h1>Reconocimiento de emociones en tiempo real</h1>
   <button id="startButton">Iniciar</button>
 
@@ -69,36 +68,10 @@
       <p id="probabilityResult"></p>
     </div>
   </div>
+  
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0/dist/tf.min.js"></script>
   <script>
-  // Cargar el modelo desde el archivo model.json
-  async function loadModel() {
-    const model = await tf.loadLayersModel('./tfjs_model/model.json');
-    return model;
-  }
-
-  // Función para predecir la emoción utilizando el modelo cargado
-  async function predictEmotion(mfcc) {
-    const model = await loadModel();
-    const predictions = model.predict(mfcc);
-    const emotionIndex = predictions.argMax(1).dataSync()[0];
-    const emotion = emotions[emotionIndex];
-    const probability = predictions.dataSync()[emotionIndex];
-
-    return { emotion, probability };
-  }
-
     var emotions = ['Agradecimiento', 'Ansiedad', 'Curiosidad', 'Expectativa', 'Felicidad', 'Seguridad', 'Tranquilidad'];
-
-    function preprocessAudio(audioData) {
-      // Convertir el audio a un archivo WAV
-      var blob = new Blob([audioData], { type: 'audio/wav' });
-
-      // Crear un objeto FormData para enviar el archivo al servidor
-      var formData = new FormData();
-      formData.append('audio', blob, 'temp_audio.wav');
-
-      return formData;
-    }
 
     function displayResult(emotion, probability) {
       var emotionResult = document.getElementById('emotionResult');
@@ -127,6 +100,7 @@
 
           mediaRecorder.addEventListener('stop', function() {
             var audioData = new Blob(chunks, { type: 'audio/webm' });
+
             var audioURL = URL.createObjectURL(audioData);
 
             var audio = new Audio();
@@ -134,7 +108,8 @@
             audio.controls = true;
             document.body.appendChild(audio);
 
-            var formData = preprocessAudio(audioData);
+            var formData = new FormData();
+            formData.append('audio', audioData);
 
             fetch('predict.php', {
               method: 'POST',
