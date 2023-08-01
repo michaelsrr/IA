@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="shortcut icon" href="https://creadn.com.co/assets/img/icono.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconocimiento de Emociones</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Reconocimiento de Emociones a través de la Voz</h1>
+        <p>Haz clic en el botón para cargar un archivo de audio:</p>
+        <input type="file" accept=".wav" id="audioFileInput">
+        <button onclick="processAudio()">Procesar Audio</button>
+
+        <div id="results" style="display: none;">
+            <h2>Resultados:</h2>
+            <p>Emoción: <span id="emotionResult"></span></p>
+            <p>Probabilidad: <span id="probabilityResult"></span></p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+</body>
+</html>
+
