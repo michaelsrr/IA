@@ -16,6 +16,13 @@
 
         <p>O inicia la grabación en tiempo real:</p>
         <button id="recordButton">Iniciar Grabación</button>
+
+        <div id="results" style="display: none;">
+            <h2>Resultados:</h2>
+            <p>Emoción: <span id="emotionResult"></span></p>
+            <p>Probabilidad: <span id="probabilityResult"></span></p>
+            <img id="gifImg" src="" alt="GIF de emoción"> 
+        </div>
     </div>
 
     <script src="{{ url_for('static', filename='main.js') }}"></script>
